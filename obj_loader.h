@@ -1,3 +1,5 @@
+#pragma once
+
 #include "geometry_types.h"
 #include <vector>
 class ObjModel {

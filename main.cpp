@@ -1,60 +1,11 @@
 #include "geometry_types.h"
 #include "obj_loader.h"
+#include "primitives.h"
 #include "tgaimage.h"
-#include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <tuple>
-#include <utility>
-
-constexpr TGAColor white = {255, 255, 255, 255}; // attention, BGRA order
-constexpr TGAColor green = {0, 255, 0, 255};
-constexpr TGAColor red = {0, 0, 255, 255};
-constexpr TGAColor blue = {255, 128, 64, 255};
-constexpr TGAColor yellow = {0, 200, 255, 255};
-
-void line(int ax, int ay, int bx, int by, TGAImage &buff, TGAColor color) {
-    bool should_transpose_image = std::abs(ax - bx) < std::abs(ay - by);
-
-    // if the line is steep, we transpose the image
-    if (should_transpose_image) {
-        std::swap(ax, ay);
-        std::swap(bx, by);
-    }
-
-    // if the coordinates are given RTL we make them LTR
-    if (ax > bx) {
-        std::swap(ax, bx);
-        std::swap(ay, by);
-    }
-    int ierror = 0;
-    for (int x = ax; x <= bx; x++) {
-        float t = (x - ax) / static_cast<float>(bx - ax);
-        int y = std::round(ay + (by - ay) * t);
-        // if the line was transposed in past, we detranspose it
-        //
-        if (should_transpose_image)
-            buff.set(y, x, color);
-        else
-            buff.set(x, y, color);
-
-        ierror += 2 * std::abs(by - ay);
-        if (ierror > bx - ax) {
-            y += by > ay ? 1 : -1;
-            ierror -= 2 * (bx - ax);
-        }
-    }
-
-    /** Initial simple approach
-      for (float t = 0.; t <= 1.; t += 0.02) {
-      int x = std::round(ax + (t * (bx - ax)));
-      int y = std::round(ay + (t * (by - ay)));
-
-      buff.set(x, y, color);
-      }
-    **/
-};
 
 void stress_test() {
 
@@ -101,12 +52,12 @@ std::tuple<int, int> project(vec3 v, int width, int height) {
             (v.y + 1.) * height / 2};
 }
 
-int draw_model(int argc, char **argv) {
+int draw_model_wireframe(int argc, char **argv) {
     constexpr int width = 800;
     constexpr int height = 800;
 
     if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " path/to/model.obj" << std::endl;
         return 1;
     }
 
@@ -129,8 +80,41 @@ int draw_model(int argc, char **argv) {
         framebuffer.set(x, y, white);
     }
 
-    framebuffer.write_tga_file("./renders/model.tga");
+    framebuffer.write_tga_file("./renders/model_wireframe.tga");
     return 0;
+}
+
+int draw_model_trig_raster(int argc, char **argv) {
+    constexpr int width = 800;
+    constexpr int height = 800;
+
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " path/to/model.obj" << std::endl;
+        return 1;
+    }
+
+    ObjModel model(argv[1]);
+    TGAImage framebuffer(width, height, TGAImage::RGB);
+    for (int i = 0; i < model.nfaces(); i++) { // iterate through all triangles
+        auto [ax, ay] = project(model.vert(i, 0), width, height);
+        auto [bx, by] = project(model.vert(i, 1), width, height);
+        auto [cx, cy] = project(model.vert(i, 2), width, height);
+        TGAColor rnd;
+        for (int c = 0; c < 3; c++)
+            rnd[c] = std::rand() % 255;
+        triangle(ax, ay, bx, by, cx, cy, framebuffer, rnd);
+    }
+    framebuffer.write_tga_file("./renders/model_trig_raster.tga");
+    return 0;
+}
+
+void draw_single_raster_triangle() {
+    int width = 128, height = 128;
+    TGAImage framebuffer(width, height, TGAImage::RGB);
+    triangle(7, 45, 35, 100, 45, 60, framebuffer, red);
+    triangle(120, 35, 90, 5, 45, 110, framebuffer, white);
+    triangle(115, 83, 80, 90, 85, 120, framebuffer, green);
+    framebuffer.write_tga_file("./renders/triangle.tga");
 }
 
 int main(int argc, char **argv) {
@@ -138,6 +122,9 @@ int main(int argc, char **argv) {
     std::filesystem::create_directory("./renders");
     // draw_image();
     // stress_test();
-    draw_model(argc, argv);
+    // draw_model(argc, argv);
+    draw_model_wireframe(argc, argv);
+    draw_model_trig_raster(argc, argv);
+
     return 0;
 }
