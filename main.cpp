@@ -46,10 +46,15 @@ void draw_image() {
     framebuffer.write_tga_file("renders/framebuffer.tga");
 }
 
-std::tuple<int, int> project(vec3 v, int width, int height) {
-    return {(v.x + 1.) * width / 2, // Second, since the input models are scaled to have fit in the
-                                    // [-1,1]^3 world coordinates,
-            (v.y + 1.) * height / 2};
+std::tuple<int, int, int> project(vec3 v, int width, int height) {
+    int x = (v.x + 1.) * width / 2;
+    int y = (v.y + 1.) * height / 2;
+    int z = (v.z + 1.) * 255. / 2;
+
+    return {x, y, z};
+    // return {(v.x + 1.) * width / 2, // Second, since the input models are scaled to have fit in the
+    //                                 // [-1,1]^3 world coordinates,
+    //         (v.y + 1.) * height / 2};
 }
 
 int draw_model_wireframe(int argc, char **argv) {
@@ -65,18 +70,18 @@ int draw_model_wireframe(int argc, char **argv) {
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
     for (int i = 0; i < model.nfaces(); i++) {
-        auto [ax, ay] = project(model.vert(i, 0), width, height);
-        auto [bx, by] = project(model.vert(i, 1), width, height);
-        auto [cx, cy] = project(model.vert(i, 2), width, height);
+        auto [ax, ay, az] = project(model.vert(i, 0), width, height);
+        auto [bx, by, bz] = project(model.vert(i, 1), width, height);
+        auto [cx, cy, cz] = project(model.vert(i, 2), width, height);
 
         line(ax, ay, bx, by, framebuffer, green);
         line(bx, by, cx, cy, framebuffer, green);
         line(cx, cy, ax, ay, framebuffer, green);
     }
 
-    for (int i = 0; i < model.nverts(); i++) {   // iterate through all vertices
-        vec3 v = model.vert(i);                  // get i-th vertex
-        auto [x, y] = project(v, width, height); // project it to the screen
+    for (int i = 0; i < model.nverts(); i++) {      // iterate through all vertices
+        vec3 v = model.vert(i);                     // get i-th vertex
+        auto [x, y, z] = project(v, width, height); // project it to the screen
         framebuffer.set(x, y, white);
     }
 
@@ -95,16 +100,19 @@ int draw_model_trig_raster(int argc, char **argv) {
 
     ObjModel model(argv[1]);
     TGAImage framebuffer(width, height, TGAImage::RGB);
+    TGAImage zbuffer(width, height, TGAImage::GRAYSCALE);
     for (int i = 0; i < model.nfaces(); i++) { // iterate through all triangles
-        auto [ax, ay] = project(model.vert(i, 0), width, height);
-        auto [bx, by] = project(model.vert(i, 1), width, height);
-        auto [cx, cy] = project(model.vert(i, 2), width, height);
+        auto [ax, ay, az] = project(model.vert(i, 0), width, height);
+        auto [bx, by, bz] = project(model.vert(i, 1), width, height);
+        auto [cx, cy, cz] = project(model.vert(i, 2), width, height);
         TGAColor rnd;
         for (int c = 0; c < 3; c++)
             rnd[c] = std::rand() % 255;
-        triangle(ax, ay, bx, by, cx, cy, framebuffer, rnd);
+
+        triangle(ax, ay, az, bx, by, bz, cx, cy, cz, zbuffer, framebuffer, rnd);
     }
     framebuffer.write_tga_file("./renders/model_trig_raster.tga");
+    zbuffer.write_tga_file("./renders/model_trig_raster_zbuffer.tga");
     return 0;
 }
 
